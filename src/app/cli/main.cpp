@@ -159,7 +159,11 @@ int main(int argc, const char *argv[])
     // Block signals in this thread and subsequently spawned threads.
     sigemptyset(&gSignalSet);
     sigaddset(&gSignalSet, SIGINT);
+
+#ifndef __MSYS__
+    // TODO: Exists in cywin but not in msys2 --> find alternative solution
     pthread_sigmask(SIG_BLOCK, &gSignalSet, nullptr);
+#endif
 
     std::thread(HandleSignalInterrupt).detach();
 

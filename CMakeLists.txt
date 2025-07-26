@@ -38,6 +38,7 @@ option(OT_COMM_JAVA_BINDING      "Build Java binding" OFF)
 set(OT_COMM_JAVA_BINDING_OUTDIR  "" CACHE STRING "Specify output directory of generated Java source files")
 option(OT_COMM_TEST              "Build tests" ON)
 option(OT_COMM_WARNING_AS_ERROR  "Treat warning as error" OFF)
+option(CMAKE_CXX_EXTENSIONS      "CMAKE_CXX_EXTENSIONS" OFF)
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -51,8 +52,6 @@ if(NOT "${CMAKE_CXX_STANDARD}")
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
-
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 # `pthread` is already included in Android glibc implementation (`bionic`),
 # so it is not necessary to find the thread libs separately.

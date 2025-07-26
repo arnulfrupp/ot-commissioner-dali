@@ -1507,6 +1507,17 @@ Interpreter::Value Interpreter::ProcessBr(const Expression &aExpr)
         {
 #ifdef __linux__
             rval = setsockopt(mdnsSocket, SOL_SOCKET, SO_BINDTODEVICE, netIf.c_str(), netIf.size());
+#elif __MSYS__
+        int if_index = if_nametoindex(netIf.c_str());
+        
+        if(if_index != 0)
+        {
+            rval = setsockopt(mdnsSocket, SOL_SOCKET, IP_UNICAST_IF, &if_index, sizeof(if_index));
+        }
+        else
+        {
+            rval = -1;
+        }
 #else  // __NetBSD__ || __FreeBSD__ || __APPLE__
             rval = setsockopt(mdnsSocket, IPPROTO_IPV6, IP_BOUND_IF, netIf.c_str(), netIf.size());
 #endif // __linux__

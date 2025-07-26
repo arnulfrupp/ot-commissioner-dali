@@ -37,4 +37,26 @@ main()
     ninja
 }
 
-main "$@"
+main_msys2()
+{
+    rm -r build
+    mkdir -p build
+    cd build
+    cmake -DOT_COMM_TEST=OFF -DOT_COMM_CCM=OFF -DCMAKE_CXX_EXTENSIONS=ON -GNinja ..
+    ninja
+    echo
+    echo "Test are not available due to incompatibility with googletest library"
+    echo
+    echo "run 'ninja install' inside build folder to install commissioner-cli in /usr/local/bin"
+    echo "and config files in /usr/local/bin/etc/commissioner."
+}
+
+if [ -f "AUTHORS" ]; then
+    if [ "$(uname)" = "MSYS_NT-10.0-26100" ]; then
+        main_msys2 "$@"
+    else
+        main "$@"
+    fi
+else
+    echo "Run script/build from project root folder."
+fi

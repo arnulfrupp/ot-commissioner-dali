@@ -129,6 +129,20 @@ elif [ "$(uname)" = "Darwin" ]; then
         brew unlink cmake
         brew install cmake --HEAD
     }
+elif [ "$(uname)" = "MSYS_NT-10.0-26100" ]; then
+    echo "OS is Windows and MSYS2"
+
+    ## Install packages
+    pacman -S git
+    pacman -S base-devel
+    pacman -S gcc
+    pacman -S cmake
+    pacman -S ninja
+    pacman -S swig
+    pacman -S lcov
+    pacman -S doxygen
+    pacman -S python3
+    pacman -S libreadline-devel
 else
     echo "platform $(uname) is not fully supported"
     exit 1
@@ -146,4 +160,11 @@ else
     git submodule update --init --recursive --depth=1 --progress -- third_party/mdns/repo
     git submodule update --init --recursive --depth=1 --progress -- third_party/fmtlib/repo
 fi
+
+if [ "$(uname)" = "MSYS_NT-10.0-26100" ]; then
+    echo Remove CMAKE version check in json and libevent to avoid backwards compatibility error wit MSYS2 cmake version.
+    sed -i '/^cmake_minimum_required(VERSION/d' third_party/json/repo/CMakeLists.txt
+    sed -i '/^cmake_minimum_required(VERSION/d' third_party/libevent/repo/CMakeLists.txt
+fi
+
 cd -

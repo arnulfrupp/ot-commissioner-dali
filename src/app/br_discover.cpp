@@ -62,9 +62,20 @@ Error DiscoverBorderAgent(BorderAgentHandler aBorderAgentHandler, size_t aTimeou
     {
 #ifdef __linux__
         rval = setsockopt(socket, SOL_SOCKET, SO_BINDTODEVICE, aNetIf.c_str(), aNetIf.size());
+#elif __MSYS__
+        int if_index = if_nametoindex(aNetIf.c_str());
+        
+        if(if_index != 0)
+        {
+            rval = setsockopt(socket, SOL_SOCKET, IP_UNICAST_IF, &if_index, sizeof(if_index));
+        }
+        else
+        {
+            rval = -1;
+        }
 #else  // __NetBSD__ || __FreeBSD__ || __APPLE__
         rval = setsockopt(socket, IPPROTO_IPV6, IP_BOUND_IF, aNetIf.c_str(), aNetIf.size());
-#endif // __linux__
+#endif // __linux__ or __MSYS__
         VerifyOrExit(rval == 0,
                      error = ERROR_INVALID_ARGS("failed to bind network interface {}: {}", aNetIf, strerror(errno)));
     }
