@@ -48,7 +48,14 @@ main_msys2()
     echo "Test are not available due to incompatibility with googletest library"
     echo
     echo "run 'ninja install' inside build folder to install commissioner-cli in /usr/local/bin"
-    echo "and config files in /usr/local/bin/etc/commissioner."
+    echo "and config files in /usr/local/etc/commissioner."
+    mkdir -p windows
+    cp src/app/cli/commissioner-cli.exe windows/
+    cp /usr/bin/msys-2.0.dll windows/
+    cp /usr/bin/msys-readline8.dll windows/
+    cp /usr/bin/msys-gcc_s-seh-1.dll windows/
+    cp /usr/bin/msys-stdc++-6.dll windows/
+    cp /usr/bin/msys-ncursesw6.dll windows/
 }
 
 if [ -f "AUTHORS" ]; then
