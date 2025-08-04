@@ -34,12 +34,11 @@
 #include "app/cli/console.hpp"
 
 #include <iostream>
+#include <thread>
+#include <time.h>
 
 #include <readline/history.h>
 #include <readline/readline.h>
-
-#include <pthread.h>
-#include <time.h>
 
 
 namespace ot {
@@ -56,11 +55,11 @@ void Console::SetPrompt(const std::string &aPrompt)
     mPrompt = aPrompt;
 }
 
-void* Console::ReadlineThread(void *arg) 
+void* Console::ReadlineThread() 
 { 
     while(gInput == nullptr)
     {
-        gInput = readline((char *)arg); 
+        gInput = readline((mPrompt + "> ").c_str()); 
 
         if(gInput != nullptr && strlen(gInput) == 0) 
         {
@@ -76,22 +75,19 @@ void* Console::ReadlineThread(void *arg)
 
 std::string Console::Read()
 {
-    char prompt[100];
-    pthread_t thread_id; 
     struct timespec ts;
     gInput = nullptr;
     
-    strncpy(prompt, (mPrompt + "> ").c_str(), sizeof(prompt));
-    pthread_create(&thread_id, NULL, ReadlineThread, prompt);
+    std::thread readThread(ReadlineThread);
 
     while (gInput == nullptr) 
     {
         ts.tv_sec = 0;
-        ts.tv_nsec = 50000000;  // 50 ms
+        ts.tv_nsec = kConsolePollPeriod * 1000000;
         nanosleep(&ts, nullptr);
     }
     
-    pthread_join(thread_id, NULL);
+    readThread.join();
 
     return gInput;
 }

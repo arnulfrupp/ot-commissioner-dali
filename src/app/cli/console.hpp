@@ -42,6 +42,17 @@ namespace ot {
 
 namespace commissioner {
 
+/**
+ * The maximum prompt lenght.
+ */
+static constexpr size_t kMaxPromptLenght = 100;
+
+/**
+ * The console poll period in milliseconds.
+ */
+static constexpr size_t kConsolePollPeriod = 50;
+
+
 class Console
 {
 public:
@@ -71,7 +82,7 @@ protected:
     static std::string mPrompt;
 
 private:
-    static void* ReadlineThread(void *arg);
+    static void* ReadlineThread();
 };
 
 /**
