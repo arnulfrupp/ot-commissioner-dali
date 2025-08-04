@@ -229,6 +229,7 @@ private:
     Value ProcessPanId(const Expression &aExpr);
     Value ProcessEnergy(const Expression &aExpr);
     Value ProcessNetworkDiag(const Expression &aExpr);
+    Value ProcessUdp(const Expression &aExpr);
     Value ProcessExit(const Expression &aExpr);
     Value ProcessHelp(const Expression &aExpr);
 

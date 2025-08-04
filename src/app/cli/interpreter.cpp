@@ -204,6 +204,7 @@ const std::map<std::string, Interpreter::Evaluator> &Interpreter::mEvaluatorMap 
     {"energy", &Interpreter::ProcessEnergy},       {"exit", &Interpreter::ProcessExit},
     {"quit", &Interpreter::ProcessExit},           {"help", &Interpreter::ProcessHelp},
     {"state", &Interpreter::ProcessState},         {"netdiag", &Interpreter::ProcessNetworkDiag},
+    {"udp", &Interpreter::ProcessUdp},
 };
 
 const std::map<std::string, std::string> &Interpreter::mUsageMap = *new std::map<std::string, std::string>{
@@ -284,6 +285,12 @@ const std::map<std::string, std::string> &Interpreter::mUsageMap = *new std::map
                "energy report [<dst-addr>]"},
     {"netdiag", "netdiag query [extaddr | rloc16] <dest mesh local address>\n"
                 "netdiag reset maccounters <dest mesh local address>"},
+    {"udp", "udp open\n"
+            "udp bind <unicast IPv6 host address or the unspecified IPv6 address (::)> <port>\n"
+            "udp connect <dest IPv6 address> <port>\n"
+            "udp send <hex content>\n"
+            "udp send <dest IPv6 address> <port> <hex content>\n"
+            "udp close"},
     {"exit", "exit"},
     {"quit", "quit\n"
              "(an alias to 'exit' command)"},
@@ -2664,6 +2671,41 @@ Interpreter::Value Interpreter::ProcessNetworkDiagJob(CommissionerAppPtr &aCommi
                         "\nContent: " + NetDiagDataToJson(diagAnsDataMap.second);
             }
         }
+    }
+
+exit:
+    return value;
+}
+
+Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
+{
+    Value value;
+
+    VerifyOrExit(aExpr.size() >= 2, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
+
+    if (CaseInsensitiveEqual(aExpr[1], "open"))
+    {
+        // TODO: UDP
+    }
+    else if (CaseInsensitiveEqual(aExpr[1], "bind"))
+    {
+        
+    }
+    else if (CaseInsensitiveEqual(aExpr[1], "connect"))
+    {
+        
+    }
+    else if (CaseInsensitiveEqual(aExpr[1], "send"))
+    {
+        
+    }
+    else if (CaseInsensitiveEqual(aExpr[1], "close"))
+    {
+        
+    }
+    else
+    {
+        value = ERROR_INVALID_COMMAND(SYNTAX_INVALID_SUBCOMMAND, aExpr[1]);
     }
 
 exit:
