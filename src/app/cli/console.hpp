@@ -69,6 +69,9 @@ public:
 
 protected:
     static std::string mPrompt;
+
+private:
+    static void* ReadlineThread(void *arg);
 };
 
 /**

@@ -38,11 +38,16 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 
+#include <pthread.h>
+#include <time.h>
+
+
 namespace ot {
 
 namespace commissioner {
 
 bool gVerbose = false;
+static char *gInput; 
 
 std::string Console::mPrompt;
 
@@ -51,18 +56,44 @@ void Console::SetPrompt(const std::string &aPrompt)
     mPrompt = aPrompt;
 }
 
-std::string Console::Read()
-{
-    const char *line = "";
-
-    while (line == nullptr || strlen(line) == 0)
+void* Console::ReadlineThread(void *arg) 
+{ 
+    while(gInput == nullptr)
     {
-        line = readline((mPrompt + "> ").c_str());
+        gInput = readline((char *)arg); 
+
+        if(gInput != nullptr && strlen(gInput) == 0) 
+        {
+            free(gInput);
+            gInput = nullptr;
+        }
     }
 
-    add_history(line);
+    add_history(gInput);
+     
+    return NULL; 
+}
 
-    return line;
+std::string Console::Read()
+{
+    char prompt[100];
+    pthread_t thread_id; 
+    struct timespec ts;
+    gInput = nullptr;
+    
+    strncpy(prompt, (mPrompt + "> ").c_str(), sizeof(prompt));
+    pthread_create(&thread_id, NULL, ReadlineThread, prompt);
+
+    while (gInput == nullptr) 
+    {
+        ts.tv_sec = 0;
+        ts.tv_nsec = 50000000;  // 50 ms
+        nanosleep(&ts, nullptr);
+    }
+    
+    pthread_join(thread_id, NULL);
+
+    return gInput;
 }
 
 void Console::Write(const std::string &aLine, Color aColor)
