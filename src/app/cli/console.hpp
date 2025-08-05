@@ -81,8 +81,8 @@ public:
 protected:
     static std::string mPrompt;
 
-private:
-    static void* ReadlineThread();
+private:   
+    static void ReadlineCallback(char* aInput);
 };
 
 /**

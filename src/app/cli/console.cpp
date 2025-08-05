@@ -36,6 +36,8 @@
 #include <iostream>
 #include <thread>
 #include <time.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 #include <readline/history.h>
 #include <readline/readline.h>
@@ -46,7 +48,8 @@ namespace ot {
 namespace commissioner {
 
 bool gVerbose = false;
-static char *gInput; 
+char *gInput; 
+bool gReadlineActive = false;
 
 std::string Console::mPrompt;
 
@@ -55,39 +58,50 @@ void Console::SetPrompt(const std::string &aPrompt)
     mPrompt = aPrompt;
 }
 
-void* Console::ReadlineThread() 
+void Console::ReadlineCallback(char* aInput) 
 { 
-    while(gInput == nullptr)
-    {
-        gInput = readline((mPrompt + "> ").c_str()); 
+    gInput = aInput;
 
-        if(gInput != nullptr && strlen(gInput) == 0) 
+    if(gInput != nullptr)
+    {
+        if(strlen(gInput) > 0)
         {
-            free(gInput);
+            rl_callback_handler_remove();
+            add_history(gInput);
+        }
+        else
+        {
             gInput = nullptr;
         }
     }
-
-    add_history(gInput);
-     
-    return NULL; 
 }
 
 std::string Console::Read()
 {
-    struct timespec ts;
     gInput = nullptr;
-    
-    std::thread readThread(ReadlineThread);
+
+    gReadlineActive = true;
+    rl_callback_handler_install((mPrompt + "> ").c_str(), ReadlineCallback);
 
     while (gInput == nullptr) 
     {
-        ts.tv_sec = 0;
-        ts.tv_nsec = kConsolePollPeriod * 1000000;
-        nanosleep(&ts, nullptr);
+        struct timeval timeout = {0, kConsolePollPeriod * 1000};
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+        int ret = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &timeout);
+
+        if (ret > 0 && FD_ISSET(STDIN_FILENO, &fds)) 
+        {
+            rl_callback_read_char();
+        } 
+        else if (ret == 0) 
+        {
+            // do other work if needed
+        } 
     }
-    
-    readThread.join();
+
+    gReadlineActive = false;
 
     return gInput;
 }
@@ -96,6 +110,18 @@ void Console::Write(const std::string &aLine, Color aColor)
 {
     static const std::string kResetCode = "\u001b[0m";
     std::string              colorCode;
+    char*                    savedLine;
+    int                      savedPoint;
+
+
+    if(gReadlineActive)
+    {
+        savedPoint = rl_point;
+        savedLine = rl_copy_text(0, rl_end);
+        rl_save_prompt();
+        rl_replace_line("", 0);
+        rl_redisplay();
+    }
 
     switch (aColor)
     {
@@ -126,6 +152,15 @@ void Console::Write(const std::string &aLine, Color aColor)
     }
 
     std::cout << colorCode << aLine << kResetCode << std::endl;
+
+    if(gReadlineActive)
+    {
+        rl_restore_prompt();
+        rl_replace_line(savedLine, 0);
+        rl_point = savedPoint;
+        rl_redisplay();
+        free(savedLine);
+    }
 }
 
 } // namespace commissioner
