@@ -127,6 +127,8 @@ public:
 
     void SetEventHandler(EventHandler aEventHandler) override;
 
+    bool IsBound() const { return mIsBound; }
+
 private:
     mbedtls_net_context mNetCtx;
     bool                mIsBound;

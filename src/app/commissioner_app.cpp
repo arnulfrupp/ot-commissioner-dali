@@ -569,7 +569,7 @@ exit:
 
 Error CommissionerApp::GetMeshLocalPrefix(std::string &aPrefix)
 {
-    Error error;
+    ot::commissioner::Error error;
 
     VerifyOrExit(IsActive(), error = ERROR_INVALID_STATE("the commissioner is not active"));
 

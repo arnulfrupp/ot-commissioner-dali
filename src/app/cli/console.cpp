@@ -32,6 +32,7 @@
  */
 
 #include "app/cli/console.hpp"
+#include "common/utils.hpp"
 
 #include <iostream>
 #include <thread>
@@ -50,6 +51,8 @@ namespace commissioner {
 bool gVerbose = false;
 char *gInput; 
 bool gReadlineActive = false;
+std::function<void(void *aContext)> gPollingFunction = nullptr;
+void *gPollingContext = nullptr;
 
 std::string Console::mPrompt;
 
@@ -57,6 +60,20 @@ void Console::SetPrompt(const std::string &aPrompt)
 {
     mPrompt = aPrompt;
 }
+
+Error Console::SetPollingFunction(std::function<void(void *aContext)> aPollingFunction, void *aContext)
+{
+    Error error = ERROR_NONE;
+
+    VerifyOrExit(aPollingFunction != nullptr, error = ERROR_INVALID_ARGS("Polling function is null"));
+    VerifyOrExit(gPollingFunction == nullptr, error = ERROR_ALREADY_EXISTS("Polling function already set"));
+    
+    gPollingFunction = aPollingFunction;
+    gPollingContext = aContext;
+
+exit:
+    return error;
+}   
 
 void Console::ReadlineCallback(char* aInput) 
 { 
@@ -97,7 +114,10 @@ std::string Console::Read()
         } 
         else if (ret == 0) 
         {
-            // do other work if needed
+            if(gPollingFunction != nullptr)
+            {
+                gPollingFunction(gPollingContext);
+            }
         } 
     }
 
@@ -112,9 +132,9 @@ void Console::Write(const std::string &aLine, Color aColor)
     std::string              colorCode;
     char*                    savedLine;
     int                      savedPoint;
+    bool                     isReadlineActive = gReadlineActive;
 
-
-    if(gReadlineActive)
+    if(isReadlineActive)
     {
         savedPoint = rl_point;
         savedLine = rl_copy_text(0, rl_end);
@@ -153,7 +173,7 @@ void Console::Write(const std::string &aLine, Color aColor)
 
     std::cout << colorCode << aLine << kResetCode << std::endl;
 
-    if(gReadlineActive)
+    if(isReadlineActive)
     {
         rl_restore_prompt();
         rl_replace_line(savedLine, 0);

@@ -35,6 +35,7 @@
 #define OT_COMM_APP_CLI_CONSOLE_HPP_
 
 #include <string>
+#include <functional>
 
 #include <commissioner/error.hpp>
 
@@ -48,7 +49,7 @@ namespace commissioner {
 static constexpr size_t kMaxPromptLenght = 100;
 
 /**
- * The console poll period in milliseconds.
+ * The console poll period in milliseconds (< 1000).
  */
 static constexpr size_t kConsolePollPeriod = 50;
 
@@ -77,6 +78,7 @@ public:
     static void Write(const std::string &aLine, Color aColor = Color::kDefault);
 
     static void SetPrompt(const std::string &aPrompt);
+    static Error SetPollingFunction(std::function<void(void *aContext)> aPollingFunction, void *aContext);
 
 protected:
     static std::string mPrompt;

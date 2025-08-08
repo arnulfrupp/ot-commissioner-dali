@@ -52,6 +52,7 @@
 #endif
 #include <sys/types.h>
 #include <unistd.h>
+#include <sstream>
 
 #include "app/border_agent.hpp"
 #include "app/br_discover.hpp"
@@ -69,6 +70,7 @@
 #include "commissioner/defines.hpp"
 #include "commissioner/error.hpp"
 #include "commissioner/network_data.hpp"
+#include <commissioner/error.hpp>
 #include "common/address.hpp"
 #include "common/error_macros.hpp"
 #include "common/utils.hpp"
@@ -460,6 +462,37 @@ Error Interpreter::Init(const std::string &aConfigFile, const std::string &aRegi
     // set up console verbosity
     gVerbose = verboseEnv == "1" || verboseEnv == "yes" || verboseEnv == "true";
     error    = UpdateNetworkSelectionInfo(true);
+
+    // Initialize the server socket for UDP communication.
+    VerifyOrExit(mEventBase != nullptr,
+                 error = ERROR_IO_ERROR("failed to initialize interpreter event base"));
+    
+    mServerSocket.SetEventHandler([&](short aFlags) {
+        uint8_t buf[1280];
+        int     len;
+        std::stringstream ss;
+        
+        if (aFlags & EV_READ)
+        {
+            len = mServerSocket.Receive(buf, sizeof(buf));
+
+            for(int i = 0; i < len; i++)
+            {
+                ss << std::hex << buf[i];
+            }
+
+            Console::Write(fmt::format(FMT_STRING("Received {} bytes from server socket"), len), Console::Color::kCyan); 
+            Console::Write(fmt::format(FMT_STRING("Content: {}"), ss.str()), Console::Color::kCyan); 
+        }
+    });
+
+    VerifyOrExit(Console::SetPollingFunction([this](void *) {
+        if(mEventBase != nullptr)
+        {
+            event_base_loop(mEventBase, EVLOOP_NONBLOCK);    
+        }
+    }, nullptr) == ErrorCode::kNone, error = ERROR_INVALID_STATE("Polling function already set"));
+
 exit:
     return error;
 }
@@ -2687,11 +2720,17 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
 
     if (CaseInsensitiveEqual(aExpr[1], "open"))
     {
-        // TODO: UDP
+        VerifyOrExit(!mUdpSocket, value = ERROR_ALREADY_EXISTS("The udp port is already open")); 
+        mUdpSocket = std::make_shared<UdpSocket>(mEventBase);
+        //Console::Write((mEventBase != nullptr) ? "immer noch ok" : "jetzt null", Console::Color::kCyan);
     }
     else if (CaseInsensitiveEqual(aExpr[1], "bind"))
     {
-        
+        VerifyOrExit(aExpr.size() >= 4, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
+        VerifyOrExit(aExpr.size() == 4, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
+        VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
+        VerifyOrExit(!mUdpSocket->IsBound(), value = ERROR_ALREADY_EXISTS("The udp port is already bound"));
+        mUdpSocket->Bind(aExpr[2], std::stoi(aExpr[3]));
     }
     else if (CaseInsensitiveEqual(aExpr[1], "connect"))
     {
@@ -2703,7 +2742,7 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
     }
     else if (CaseInsensitiveEqual(aExpr[1], "close"))
     {
-        
+        mUdpSocket.reset();    
     }
     else
     {
