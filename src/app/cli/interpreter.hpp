@@ -50,8 +50,6 @@
 #include "commissioner/error.hpp"
 #include "commissioner/network_data.hpp"
 
-#include "event2/event_struct.h"
-#include "event2/event.h"
 #include "library/socket.hpp"
 
 namespace ot {
@@ -72,8 +70,8 @@ public:
     using Registry       = ot::commissioner::persistent_storage::Registry;
     using RegistryStatus = Registry::Status;
 
-    Interpreter(): mEventBase(event_base_new()), mServerSocket(mEventBase) {};
-    ~Interpreter() { event_base_free(mEventBase); };
+    Interpreter()  = default;
+    ~Interpreter() = default;
 
     Error Init(const std::string &aConfigFile, const std::string &aRegistry);
 
@@ -278,9 +276,6 @@ private:
      * @note So far, used solely for breaking `br scan' execution.
      */
     int mCancelPipe[2] = {-1, -1};
-    
-    struct event_base *mEventBase;
-    UdpSocket mServerSocket;
 
     static const std::map<std::string, std::string>  &mUsageMap;
     static const std::map<std::string, Evaluator>    &mEvaluatorMap;

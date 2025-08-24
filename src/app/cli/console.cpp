@@ -55,6 +55,41 @@ std::function<void(void *aContext)> gPollingFunction = nullptr;
 void *gPollingContext = nullptr;
 
 std::string Console::mPrompt;
+struct event_base *Console::mEventBase = nullptr;
+struct event *Console::mStdinEvent = nullptr;
+
+Error Console::Init()
+{
+    Error error = ERROR_NONE;
+
+    VerifyOrExit(mEventBase == nullptr, error = ERROR_ALREADY_EXISTS("Console event base already initialized"));
+    mEventBase = event_base_new();
+    VerifyOrExit(mEventBase != nullptr, error = ERROR_OUT_OF_MEMORY("Failed to initialize console event base"));
+    
+    VerifyOrExit(mStdinEvent == nullptr, error = ERROR_ALREADY_EXISTS("Console stdin event already initialized"));
+    mStdinEvent = event_new(mEventBase, STDIN_FILENO, EV_READ | EV_PERSIST, StdinCallback, mEventBase);
+    VerifyOrExit(mStdinEvent != nullptr, error = ERROR_OUT_OF_MEMORY("Failed to initialize console stdin event"));
+
+    event_add(mStdinEvent, NULL);
+
+exit:
+    return error;
+}
+
+void Console::DeInit()
+{
+    if(mStdinEvent != nullptr)
+    {
+        event_free(mStdinEvent);
+        mStdinEvent = nullptr;
+    }
+
+    if(mEventBase != nullptr)
+    {
+        event_base_free(mEventBase);
+        mEventBase = nullptr;
+    }
+}
 
 void Console::SetPrompt(const std::string &aPrompt)
 {
@@ -93,34 +128,26 @@ void Console::ReadlineCallback(char* aInput)
     }
 }
 
+void Console::StdinCallback(evutil_socket_t, short, void*) 
+{ 
+    rl_callback_read_char();
+
+    if(gInput != nullptr)
+    {
+        event_base_loopbreak(mEventBase); 
+    }
+}
+
 std::string Console::Read()
 {
     gInput = nullptr;
 
+    VerifyOrDie(mEventBase != nullptr);
+    VerifyOrDie(mStdinEvent != nullptr);
+
     gReadlineActive = true;
     rl_callback_handler_install((mPrompt + "> ").c_str(), ReadlineCallback);
-
-    while (gInput == nullptr) 
-    {
-        struct timeval timeout = {0, kConsolePollPeriod * 1000};
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(STDIN_FILENO, &fds);
-        int ret = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &timeout);
-
-        if (ret > 0 && FD_ISSET(STDIN_FILENO, &fds)) 
-        {
-            rl_callback_read_char();
-        } 
-        else if (ret == 0) 
-        {
-            if(gPollingFunction != nullptr)
-            {
-                gPollingFunction(gPollingContext);
-            }
-        } 
-    }
-
+    event_base_dispatch(mEventBase);
     gReadlineActive = false;
 
     return gInput;

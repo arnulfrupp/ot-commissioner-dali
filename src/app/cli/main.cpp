@@ -120,6 +120,8 @@ int main(int argc, const char *argv[])
     int  ch;
     bool parseParams = true;
 
+    SuccessOrExit(error = Console::Init());
+
     while (parseParams)
     {
         ch = getopt_long(argc, const_cast<char *const *>(argv), "hvc:r:", gCommissionerCliOptions, nullptr);
@@ -174,6 +176,8 @@ int main(int argc, const char *argv[])
     gInterpreter.Run();
 
 exit:
+    Console::DeInit();
+
     if (error != ErrorCode::kNone)
     {
         Console::Write("start OT-commissioner CLI failed: " + error.ToString(), Console::Color::kRed);

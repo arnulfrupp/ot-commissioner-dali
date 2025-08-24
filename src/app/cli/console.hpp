@@ -37,6 +37,9 @@
 #include <string>
 #include <functional>
 
+#include "event2/event_struct.h"
+#include "event2/event.h"
+
 #include <commissioner/error.hpp>
 
 namespace ot {
@@ -72,6 +75,9 @@ public:
     Console()  = default;
     ~Console() = default;
 
+    static Error Init();
+    static void DeInit();
+
     static std::string Read();
 
     // Write to the console
@@ -79,12 +85,16 @@ public:
 
     static void SetPrompt(const std::string &aPrompt);
     static Error SetPollingFunction(std::function<void(void *aContext)> aPollingFunction, void *aContext);
+    static event_base* GetEventBase() { return mEventBase; }
 
 protected:
     static std::string mPrompt;
+    static struct event_base *mEventBase;
+    static struct event *mStdinEvent;
 
 private:   
     static void ReadlineCallback(char* aInput);
+    static void StdinCallback(evutil_socket_t fd, short events, void *arg);
 };
 
 /**
