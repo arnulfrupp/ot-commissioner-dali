@@ -292,7 +292,7 @@ const std::map<std::string, std::string> &Interpreter::mUsageMap = *new std::map
             "udp bind <unicast IPv6 host address or the unspecified IPv6 address (::)> <port>\n"
             "udp connect <dest IPv6 address> <port>\n"
             "udp send <hex content>\n"
-            "udp send <dest IPv6 address> <port> <hex content>\n"
+            "udp sendto <dest IPv6 address> <port> <hex content>\n"
             "udp close"},
     {"exit", "exit"},
     {"quit", "quit\n"
@@ -2736,8 +2736,18 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
         VerifyOrExit(aExpr.size() >= 3, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
         VerifyOrExit(aExpr.size() == 3, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
         VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
+        VerifyOrExit(mUdpSocket->IsConnected(), value = ERROR_INVALID_STATE("The udp port is not connected (may use sendto instead)"));
         SuccessOrExit(value = utils::Hex(buf, aExpr[2]));
         mUdpSocket->Send(buf.data(), buf.size());
+    }
+    else if (CaseInsensitiveEqual(aExpr[1], "sendto"))
+    {
+        ByteArray buf;
+
+        VerifyOrExit(aExpr.size() >= 5, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
+        VerifyOrExit(aExpr.size() == 5, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
+        SuccessOrExit(value = utils::Hex(buf, aExpr[4]));
+        mUdpSocket->SendTo(aExpr[2], std::stoi(aExpr[3]), buf.data(), buf.size());
     }
     else if (CaseInsensitiveEqual(aExpr[1], "close"))
     {

@@ -36,6 +36,8 @@
 
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include "common/address.hpp"
 #include "common/logging.hpp"
@@ -243,6 +245,54 @@ int UdpSocket::Send(const uint8_t *aBuf, size_t aLen)
     VerifyOrDie(mIsConnected);
 
     return mbedtls_net_send(&mNetCtx, aBuf, aLen);
+}
+
+int UdpSocket::SendTo(const std::string &aPeerAddr, uint16_t aPeerPort, const uint8_t *aBuf, size_t aLen)
+{
+    sockaddr_storage addr;
+    socklen_t        addrLen;
+    int              rval = 0;
+    int              sockfd = -1;
+    unsigned int     ifIndex = 0; // if_nametoindex("Ethernet"); -  0 indicates the default interface
+    int              ttl_or_hops = 5;
+
+    memset(&addr, 0, sizeof(addr));
+    if (aPeerAddr.find(':') != std::string::npos)
+    {
+        VerifyOrExit((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) >= 0);
+        VerifyOrExit(setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifIndex, sizeof(ifIndex)) >= 0);  
+        VerifyOrExit(setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl_or_hops, sizeof(ttl_or_hops)) >= 0); 
+
+        auto &addr6         = *reinterpret_cast<sockaddr_in6 *>(&addr);
+        addr.ss_family      = AF_INET6;
+        addr6.sin6_port     = htons(aPeerPort);
+        rval                = inet_pton(AF_INET6, aPeerAddr.c_str(), &addr6.sin6_addr);
+        addrLen             = sizeof(sockaddr_in6);
+        addr6.sin6_scope_id = ifIndex;
+    }
+    else
+    {
+        VerifyOrExit((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) >= 0); 
+        VerifyOrExit(setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl_or_hops, sizeof(ttl_or_hops)) >= 0);  
+
+        auto &addr4         = *reinterpret_cast<sockaddr_in *>(&addr);
+        addr.ss_family      = AF_INET;
+        addr4.sin_port      = htons(aPeerPort);
+        rval                = inet_pton(AF_INET, aPeerAddr.c_str(), &addr4.sin_addr);
+        addrLen             = sizeof(sockaddr_in);
+    }
+
+    VerifyOrExit(rval == 1);
+
+    rval = sendto(sockfd, aBuf, aLen, 0, reinterpret_cast<sockaddr *>(&addr), addrLen);
+
+exit:
+    if (sockfd >= 0)
+    {
+        close(sockfd);
+    }
+
+    return rval;
 }
 
 int UdpSocket::Receive(uint8_t *aBuf, size_t aMaxLen)

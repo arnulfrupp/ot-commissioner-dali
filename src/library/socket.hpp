@@ -123,6 +123,8 @@ public:
 
     int Send(const uint8_t *aBuf, size_t aLen) override;
 
+    int SendTo(const std::string &aPeerAddr, uint16_t aPeerPort, const uint8_t *aBuf, size_t aLen);
+
     int Receive(uint8_t *aBuf, size_t aMaxLen) override;
 
     void SetEventHandler(EventHandler aEventHandler) override;
