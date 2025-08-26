@@ -2698,10 +2698,12 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
             uint8_t buf[1280];
             int     len;
             std::stringstream ss;
+            Address addr;
+            uint16_t port = 0;
             
             if (aFlags & EV_READ)
             {
-                len = mUdpSocket->Receive(buf, sizeof(buf));
+                len = mUdpSocket->ReceiveFrom(buf, sizeof(buf), &addr, &port);
                 ss << "0x";
 
                 for(int i = 0; i < len; i++)
@@ -2709,7 +2711,7 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
                     ss << std::hex << static_cast<int>(buf[i]);
                 }
 
-                Console::Write(fmt::format(FMT_STRING("Received {} bytes from server socket"), len), Console::Color::kCyan); 
+                Console::Write(fmt::format(FMT_STRING("Received {} bytes from {} ({})"), len, addr.ToString(), port), Console::Color::kCyan); 
                 Console::Write(fmt::format(FMT_STRING("Content: {}"), ss.str()), Console::Color::kCyan); 
             }
         });
@@ -2720,14 +2722,20 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
         VerifyOrExit(aExpr.size() == 4, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
         VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
         VerifyOrExit(!mUdpSocket->IsBound(), value = ERROR_ALREADY_EXISTS("The udp port is already bound"));
-        mUdpSocket->Bind(aExpr[2], std::stoi(aExpr[3]));
+        VerifyOrExit(mUdpSocket->Bind(aExpr[2], std::stoi(aExpr[3]), true) >= 0,
+                                     value = ERROR_INVALID_ARGS("Failed to bind to {}:{}", aExpr[2], aExpr[3]));
     }
     else if (CaseInsensitiveEqual(aExpr[1], "connect"))
     {
+        Address addr;
         VerifyOrExit(aExpr.size() >= 4, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
         VerifyOrExit(aExpr.size() == 4, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
         VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
-        mUdpSocket->Connect(aExpr[2], std::stoi(aExpr[3]));
+        VerifyOrExit(!mUdpSocket->IsBound(), value = ERROR_ALREADY_EXISTS("The udp port is already bound (use sendto for sending from bound port)"));
+        VerifyOrExit(addr.Set(aExpr[2]) == ErrorCode::kNone, value = ERROR_INVALID_ARGS("{} is not a valid address", aExpr[2]));
+        VerifyOrExit(!addr.IsMulticast(), value = ERROR_INVALID_ARGS("Cannot connect to multicast address (may use sendto instead)"));
+        VerifyOrExit(mUdpSocket->Connect(aExpr[2], std::stoi(aExpr[3])) >= 0,
+                                     value = ERROR_INVALID_ARGS("Failed to connect to {} : {}", aExpr[2], aExpr[3]));
     }
     else if (CaseInsensitiveEqual(aExpr[1], "send"))
     {
@@ -2738,7 +2746,8 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
         VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
         VerifyOrExit(mUdpSocket->IsConnected(), value = ERROR_INVALID_STATE("The udp port is not connected (may use sendto instead)"));
         SuccessOrExit(value = utils::Hex(buf, aExpr[2]));
-        mUdpSocket->Send(buf.data(), buf.size());
+        VerifyOrExit(mUdpSocket->Send(buf.data(), buf.size()) > 0,
+                                     value = ERROR_INVALID_STATE("Failed to send data to connected peer"));
     }
     else if (CaseInsensitiveEqual(aExpr[1], "sendto"))
     {
@@ -2746,8 +2755,10 @@ Interpreter::Value Interpreter::ProcessUdp(const Expression &aExpr)
 
         VerifyOrExit(aExpr.size() >= 5, value = ERROR_INVALID_ARGS(SYNTAX_FEW_ARGS));
         VerifyOrExit(aExpr.size() == 5, value = ERROR_INVALID_ARGS(SYNTAX_MANY_ARGS));
+        VerifyOrExit(mUdpSocket, value = ERROR_INVALID_STATE("The udp port is not open"));
         SuccessOrExit(value = utils::Hex(buf, aExpr[4]));
-        mUdpSocket->SendTo(aExpr[2], std::stoi(aExpr[3]), buf.data(), buf.size());
+        VerifyOrExit(mUdpSocket->SendTo(aExpr[2], std::stoi(aExpr[3]), buf.data(), buf.size()) > 0,
+                                     value = ERROR_INVALID_STATE("Failed to send data to {} : {}", aExpr[2], aExpr[3]));
     }
     else if (CaseInsensitiveEqual(aExpr[1], "close"))
     {

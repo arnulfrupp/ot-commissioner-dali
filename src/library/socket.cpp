@@ -113,6 +113,7 @@ void Socket::HandleEvent(evutil_socket_t, short aFlags, void *aSocket)
 UdpSocket::UdpSocket(struct event_base *aEventBase)
     : Socket(aEventBase)
     , mIsBound(false)
+    , mIsConnectionless(false)
 {
     mbedtls_net_init(&mNetCtx);
 }
@@ -163,7 +164,7 @@ exit:
     return rval;
 }
 
-int UdpSocket::Bind(const std::string &aLocalAddr, uint16_t aLocalPort)
+int UdpSocket::Bind(const std::string &aLocalAddr, uint16_t aLocalPort, bool aIsConnectionless)
 {
     auto portStr = std::to_string(aLocalPort);
 
@@ -178,6 +179,7 @@ int UdpSocket::Bind(const std::string &aLocalAddr, uint16_t aLocalPort)
     int rval = mbedtls_net_bind(&mNetCtx, aLocalAddr.c_str(), portStr.c_str(), MBEDTLS_NET_PROTO_UDP);
     VerifyOrExit(rval == 0);
     VerifyOrExit((rval = mbedtls_net_set_nonblock(&mNetCtx)) == 0);
+    mIsConnectionless = aIsConnectionless;
 
     // Setup Event
     rval = event_assign(&mEvent, mEventBase, mNetCtx.fd, EV_PERSIST | EV_READ | EV_WRITE | EV_ET, HandleEvent, this);
@@ -252,14 +254,20 @@ int UdpSocket::SendTo(const std::string &aPeerAddr, uint16_t aPeerPort, const ui
     sockaddr_storage addr;
     socklen_t        addrLen;
     int              rval = 0;
-    int              sockfd = -1;
-    unsigned int     ifIndex = 0; // if_nametoindex("Ethernet"); -  0 indicates the default interface
+    int              sockfd = mIsBound ? mNetCtx.fd : -1;
+    unsigned int     ifIndex = 0;  // 0 indicates the default interface
     int              ttl_or_hops = 5;
+
+    VerifyOrExit(!mIsBound || sockfd >= 0);    
 
     memset(&addr, 0, sizeof(addr));
     if (aPeerAddr.find(':') != std::string::npos)
     {
-        VerifyOrExit((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) >= 0);
+        if(!mIsBound)
+        {
+            VerifyOrExit((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) >= 0); 
+        }
+
         VerifyOrExit(setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifIndex, sizeof(ifIndex)) >= 0);  
         VerifyOrExit(setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl_or_hops, sizeof(ttl_or_hops)) >= 0); 
 
@@ -272,7 +280,11 @@ int UdpSocket::SendTo(const std::string &aPeerAddr, uint16_t aPeerPort, const ui
     }
     else
     {
-        VerifyOrExit((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) >= 0); 
+        if(!mIsBound)
+        {
+            VerifyOrExit((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) >= 0); 
+        }
+
         VerifyOrExit(setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl_or_hops, sizeof(ttl_or_hops)) >= 0);  
 
         auto &addr4         = *reinterpret_cast<sockaddr_in *>(&addr);
@@ -287,7 +299,7 @@ int UdpSocket::SendTo(const std::string &aPeerAddr, uint16_t aPeerPort, const ui
     rval = sendto(sockfd, aBuf, aLen, 0, reinterpret_cast<sockaddr *>(&addr), addrLen);
 
 exit:
-    if (sockfd >= 0)
+    if (!mIsBound && sockfd >= 0)
     {
         close(sockfd);
     }
@@ -303,10 +315,42 @@ int UdpSocket::Receive(uint8_t *aBuf, size_t aMaxLen)
     return mbedtls_net_recv(&mNetCtx, aBuf, aMaxLen);
 }
 
+int UdpSocket::ReceiveFrom(uint8_t *aBuf, size_t aMaxLen, Address *aPeerAddr, uint16_t *aPort)
+{
+    sockaddr_storage addr;
+    ssize_t len;
+    socklen_t addrLen = sizeof(addr);
+
+    VerifyOrDie(mNetCtx.fd >= 0);
+
+    len = recvfrom(mNetCtx.fd, aBuf, aMaxLen, 0, (struct sockaddr*)&addr, &addrLen);
+
+    if (aPeerAddr != nullptr && len > 0)
+    {
+        SuccessOrDie(aPeerAddr->Set(addr));
+    }
+
+    if(aPort != nullptr && len > 0)
+    {
+        if (addr.ss_family == AF_INET)
+        {
+            auto &addr4 = *reinterpret_cast<const sockaddr_in *>(&addr);
+            *aPort = ntohs(addr4.sin_port);
+        }
+        else if (addr.ss_family == AF_INET6)
+        {
+            auto &addr6 = *reinterpret_cast<const sockaddr_in6 *>(&addr);
+            *aPort = ntohs(addr6.sin6_port);
+        }
+    }
+
+    return len;
+}
+
 void UdpSocket::SetEventHandler(EventHandler aEventHandler)
 {
     mEventHandler = [this, aEventHandler](short aFlags) {
-        if (mIsBound && !mIsConnected && (aFlags & EV_READ))
+        if (mIsBound && !mIsConnected && !mIsConnectionless && (aFlags & EV_READ))
         {
             mbedtls_net_context connectedCtx;
             mbedtls_net_init(&connectedCtx);
@@ -329,7 +373,7 @@ void UdpSocket::SetEventHandler(EventHandler aEventHandler)
         }
 
         // Do not handle event unless the socket is connected.
-        if (mIsConnected)
+        if (mIsConnected || mIsConnectionless)
         {
             aEventHandler(aFlags);
         }

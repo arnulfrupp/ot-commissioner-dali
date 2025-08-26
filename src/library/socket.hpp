@@ -114,7 +114,7 @@ public:
 
     int Connect(const std::string &aPeerAddr, uint16_t aPeerPort);
 
-    int Bind(const std::string &aLocalAddr, uint16_t aLocalPort);
+    int Bind(const std::string &aLocalAddr, uint16_t aLocalPort, bool aIsConnectionless = false);
 
     uint16_t GetLocalPort() const override;
     Address  GetLocalAddr() const override;
@@ -127,6 +127,8 @@ public:
 
     int Receive(uint8_t *aBuf, size_t aMaxLen) override;
 
+    int ReceiveFrom(uint8_t *aBuf, size_t aMaxLen, Address *aPeerAddr = nullptr, uint16_t *aPort = nullptr);
+
     void SetEventHandler(EventHandler aEventHandler) override;
 
     bool IsBound() const { return mIsBound; }
@@ -134,6 +136,7 @@ public:
 private:
     mbedtls_net_context mNetCtx;
     bool                mIsBound;
+    bool                mIsConnectionless;
 };
 
 using UdpSocketPtr = std::shared_ptr<UdpSocket>;
